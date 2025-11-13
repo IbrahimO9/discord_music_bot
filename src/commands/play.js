@@ -15,10 +15,21 @@ import {
 
 const execPromise = promisify(exec);
 
-// Store active players per guild
-const guildPlayers = new Map();
+export const guildPlayers = new Map();
 
-export { guildPlayers }; // Export so other commands can access
+// Helper function to delete "Now Playing" message
+export async function deleteNowPlayingMessage(guildId) {
+  const guildData = guildPlayers.get(guildId);
+  if (guildData?.nowPlayingMessage) {
+    try {
+      await guildData.nowPlayingMessage.delete();
+      guildData.nowPlayingMessage = null;
+      console.log("Deleted Now Playing message");
+    } catch (err) {
+      console.log("Could not delete old message:", err.message);
+    }
+  }
+}
 
 export const playCommand = {
   data: new SlashCommandBuilder()
