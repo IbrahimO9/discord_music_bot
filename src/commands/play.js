@@ -17,6 +17,10 @@ const execPromise = promisify(exec);
 
 export const guildPlayers = new Map();
 
+// Detect platform and use correct yt-dlp command
+const isWindows = process.platform === 'win32';
+const ytDlpCmd = isWindows ? '.\\yt-dlp.exe' : './yt-dlp';
+
 // Helper function to delete "Now Playing" message
 export async function deleteNowPlayingMessage(guildId) {
   const guildData = guildPlayers.get(guildId);
@@ -87,7 +91,7 @@ export const playCommand = {
       await interaction.editReply(`🔍 Searching: **${video.title}**...`);
       
       console.log("Fetching stream URL...");
-      const { stdout } = await execPromise(`".\\yt-dlp.exe" -f "bestaudio[ext=webm]/bestaudio" --no-playlist -g "${video.url}"`);
+      const { stdout } = await execPromise(`${ytDlpCmd} -f "bestaudio[ext=webm]/bestaudio" --no-playlist -g "${video.url}"`);
       const streamUrl = stdout.trim();
       
       const song = {
@@ -161,7 +165,7 @@ async function playNextSong(interaction, connection) {
     // If no cached stream URL, fetch it now
     if (!currentSong.streamUrl) {
       console.log("Fetching stream URL for:", currentSong.title);
-      const { stdout } = await execPromise(`".\\yt-dlp.exe" -f "bestaudio[ext=webm]/bestaudio" --no-playlist -g "${currentSong.url}"`);
+      const { stdout } = await execPromise(`${ytDlpCmd} -f "bestaudio[ext=webm]/bestaudio" --no-playlist -g "${currentSong.url}"`);
       currentSong.streamUrl = stdout.trim();
     }
     

@@ -26,3 +26,7 @@ package-lock.json
 PROJECT_STATUS.md
 DEPLOY_CHECKLIST.md
 DEPLOYMENT_GUIDE.md
+
+# yt-dlp executables (will be downloaded during build)
+yt-dlp.exe
+yt-dlp
