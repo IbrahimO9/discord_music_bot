@@ -8,6 +8,18 @@ import { pauseCommand } from "./src/commands/pause.js";
 import { resumeCommand } from "./src/commands/resume.js";
 import { getVoiceConnection } from "@discordjs/voice";
 import { queue } from "./src/queue.js";
+import http from "http";
+
+// Create a simple HTTP server to satisfy Render's port requirement
+const PORT = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Discord Music Bot is running!");
+});
+
+server.listen(PORT, () => {
+  console.log(`HTTP server running on port ${PORT}`);
+});
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
