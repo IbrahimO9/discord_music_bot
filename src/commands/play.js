@@ -91,7 +91,7 @@ export const playCommand = {
       await interaction.editReply(`🔍 Searching: **${video.title}**...`);
       
       console.log("Fetching stream URL...");
-      const { stdout } = await execPromise(`${ytDlpCmd} -f "bestaudio[ext=webm]/bestaudio" --no-playlist -g "${video.url}"`);
+      const { stdout } = await execPromise(`${ytDlpCmd} -f "bestaudio[ext=webm]/bestaudio" --no-playlist --extractor-args "youtube:player_client=android" -g "${video.url}"`);
       const streamUrl = stdout.trim();
       
       const song = {
@@ -165,7 +165,7 @@ async function playNextSong(interaction, connection) {
     // If no cached stream URL, fetch it now
     if (!currentSong.streamUrl) {
       console.log("Fetching stream URL for:", currentSong.title);
-      const { stdout } = await execPromise(`${ytDlpCmd} -f "bestaudio[ext=webm]/bestaudio" --no-playlist -g "${currentSong.url}"`);
+      const { stdout } = await execPromise(`${ytDlpCmd} -f "bestaudio[ext=webm]/bestaudio" --no-playlist --extractor-args "youtube:player_client=android" -g "${currentSong.url}"`);
       currentSong.streamUrl = stdout.trim();
     }
     
