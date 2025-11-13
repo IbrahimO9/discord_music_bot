@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+logs/
+
+# Data files
+data/*.json
+!data/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Lock files (optional - remove if you want to track them)
+package-lock.json
+
+# Old backup files
+*-player-script.js
+
+# Documentation (local only)
+PROJECT_STATUS.md
+DEPLOY_CHECKLIST.md
+DEPLOYMENT_GUIDE.md

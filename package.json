@@ -1,0 +1,42 @@
+{
+  "name": "discord-music-bot",
+  "version": "1.0.0",
+  "description": "A powerful Discord music bot with YouTube integration, queue management, and interactive controls",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "@discordjs/rest": "^2.4.0",
+    "@discordjs/voice": "^0.17.0",
+    "discord.js": "^14.16.0",
+    "dotenv": "^16.4.5",
+    "ffmpeg-static": "^5.2.0",
+    "sodium-native": "^4.3.3",
+    "yt-search": "^2.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.0"
+  },
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "music",
+    "music-bot",
+    "youtube",
+    "voice",
+    "discord.js",
+    "yt-dlp"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/discord-music-bot.git"
+  }
+}
