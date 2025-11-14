@@ -1,8 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { queue } from "../queue.js";
 import ytSearch from "yt-search";
-import { exec } from "child_process";
-import { promisify } from "util";
+import play from "play-dl";
 import {
   createAudioPlayer,
   createAudioResource,
@@ -13,13 +12,7 @@ import {
   entersState,
 } from "@discordjs/voice";
 
-const execPromise = promisify(exec);
-
 export const guildPlayers = new Map();
-
-// Detect platform and use correct yt-dlp command
-const isWindows = process.platform === 'win32';
-const ytDlpCmd = isWindows ? '.\\yt-dlp.exe' : './yt-dlp';
 
 // Helper function to delete "Now Playing" message
 export async function deleteNowPlayingMessage(guildId) {
@@ -80,7 +73,7 @@ export const playCommand = {
         const song = {
           title: video.title,
           url: video.url,
-          streamUrl: null, // Will fetch when needed
+          stream: null, // Will fetch when needed
           thumbnail: video.thumbnail,
           requester: interaction.user.username,
           guildId: interaction.guild.id,
@@ -96,13 +89,12 @@ export const playCommand = {
       await interaction.editReply(`🔍 Searching: **${video.title}**...`);
       
       console.log("Fetching stream URL...");
-      const { stdout } = await execPromise(`${ytDlpCmd} --extractor-args "youtube:player_client=ios" --no-check-certificates -f "bestaudio" -g "${video.url}"`);
-      const streamUrl = stdout.trim();
+      const stream = await play.stream(video.url);
       
       const song = {
         title: video.title,
         url: video.url,
-        streamUrl: streamUrl, // Cache the stream URL
+        stream: stream, // Store stream object
         thumbnail: video.thumbnail,
         requester: interaction.user.username,
         guildId: interaction.guild.id,
@@ -171,21 +163,22 @@ async function playNextSong(interaction, connection) {
   const currentSong = queue.next();
   
   try {
-    // If no cached stream URL, fetch it now
-    if (!currentSong.streamUrl) {
-      console.log("Fetching stream URL for:", currentSong.title);
-      const { stdout } = await execPromise(`${ytDlpCmd} --extractor-args "youtube:player_client=ios" --no-check-certificates -f "bestaudio" -g "${currentSong.url}"`);
-      currentSong.streamUrl = stdout.trim();
+    // If no cached stream, fetch it now
+    if (!currentSong.stream) {
+      console.log("Fetching stream for:", currentSong.title);
+      currentSong.stream = await play.stream(currentSong.url);
     }
     
-    if (!currentSong || !currentSong.streamUrl) {
+    if (!currentSong || !currentSong.stream) {
       throw new Error("Invalid song");
     }
     
     console.log("Playing:", currentSong.title);
     
-    // Use cached stream URL
-    const resource = createAudioResource(currentSong.streamUrl);
+    // Use play-dl stream
+    const resource = createAudioResource(currentSong.stream.stream, {
+      inputType: currentSong.stream.type
+    });
     
     // Get or create player
     let player = guildPlayers.get(interaction.guild.id)?.player;
