@@ -25,6 +25,19 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
 
+// Keep Render free tier awake by periodically pinging our own URL (if provided)
+const keepAliveUrl = process.env.KEEPALIVE_URL || process.env.RENDER_EXTERNAL_URL;
+if (keepAliveUrl) {
+  setInterval(async () => {
+    try {
+      await fetch(keepAliveUrl);
+      console.log(`[KeepAlive] Pinged ${keepAliveUrl}`);
+    } catch (err) {
+      console.warn("[KeepAlive] Ping failed:", err.message);
+    }
+  }, Math.max(60_000, (parseInt(process.env.KEEPALIVE_INTERVAL_MS, 10) || 14 * 60 * 1000)));
+}
+
 // ---------- REGISTER COMMANDS ----------
 const commands = [
   playCommand.data,

@@ -147,13 +147,15 @@ See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed deployment instructi
 |----------|-------------|----------|
 | `DISCORD_TOKEN` | Your bot token from Discord Developer Portal | ✅ Yes |
 | `CLIENT_ID` | Your application ID | ✅ Yes |
+| `PIPED_INSTANCE` | (Optional) Override the default Piped API instance for YouTube streams | ❌ |
+| `KEEPALIVE_URL` | (Optional) URL to ping every ~14 minutes to keep Render awake | ❌ |
 
 ## 🐛 Troubleshooting
 
 **Bot not playing music:**
-- Ensure `yt-dlp.exe` is in the project root
-- Check that ffmpeg is installed
-- Verify sodium-native is properly installed
+- Ensure the configured Piped instance (or the default https://piped.video) is reachable
+- Check that ffmpeg-static and sodium-native installed successfully
+- Verify the bot has permission to join/speak in the channel
 
 **Commands not showing:**
 - Wait a few minutes for Discord to sync commands
@@ -163,6 +165,10 @@ See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed deployment instructi
 **Voice encryption error:**
 - Run: `npm install sodium-native`
 - Restart the bot
+
+**Bot goes offline / Unknown interaction:**
+- Set `KEEPALIVE_URL` to your Render URL and redeploy (prevents the service from sleeping)
+- Alternatively, ping the URL with UptimeRobot / cron-job.org every 10 minutes
 
 ## 📝 License
 
