@@ -1,7 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { queue } from "../queue.js";
 import ytSearch from "yt-search";
-import play from "play-dl";
 import {
   createAudioPlayer,
   createAudioResource,
@@ -11,8 +10,71 @@ import {
   NoSubscriberBehavior,
   entersState,
 } from "@discordjs/voice";
+import { Readable } from "stream";
 
 export const guildPlayers = new Map();
+
+// Resolve which Piped instance to use (configurable via env)
+const pipedBaseUrl = process.env.PIPED_INSTANCE?.replace(/\/$/, "") || "https://piped.video";
+const STREAM_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_HEADERS = {
+  accept: "application/json",
+  "user-agent": "Mozilla/5.0 (DiscordMusicBot)"
+};
+
+// Extract video ID from common YouTube URL shapes
+function getYouTubeVideoId(videoUrl) {
+  try {
+    const url = new URL(videoUrl);
+    if (url.hostname === "youtu.be") {
+      return url.pathname.replace("/", "");
+    }
+    if (url.hostname.includes("youtube.com")) {
+      if (url.searchParams.get("v")) {
+        return url.searchParams.get("v");
+      }
+      const pathSegments = url.pathname.split("/").filter(Boolean);
+      const watchIndex = pathSegments.indexOf("shorts");
+      if (watchIndex !== -1 && pathSegments[watchIndex + 1]) {
+        return pathSegments[watchIndex + 1];
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Invalid YouTube URL:", videoUrl, error);
+    return null;
+  }
+}
+
+async function fetchPipedStreamUrl(videoUrl) {
+  const videoId = getYouTubeVideoId(videoUrl);
+  if (!videoId) {
+    throw new Error("Unable to parse YouTube video ID");
+  }
+
+  const endpoint = `${pipedBaseUrl}/api/v1/streams/${videoId}`;
+  const response = await fetch(endpoint, { headers: DEFAULT_HEADERS });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch stream metadata (${response.status})`);
+  }
+
+  const data = await response.json();
+  const audioStreams = data?.audioStreams || [];
+  if (!audioStreams.length) {
+    throw new Error("No audio streams available from Piped");
+  }
+
+  // Prefer Opus/WebM streams for lower latency, fall back to highest bitrate
+  const preferred = audioStreams.find((stream) => stream.format === "WEBM" && stream.codec?.includes("opus"));
+  const streamInfo = preferred || audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
+  if (!streamInfo?.url) {
+    throw new Error("Invalid audio stream info from Piped");
+  }
+
+  return streamInfo.url;
+}
 
 // Helper function to delete "Now Playing" message
 export async function deleteNowPlayingMessage(guildId) {
@@ -73,11 +135,12 @@ export const playCommand = {
         const song = {
           title: video.title,
           url: video.url,
-          stream: null, // Will fetch when needed
+          streamUrl: null,
           thumbnail: video.thumbnail,
           requester: interaction.user.username,
           guildId: interaction.guild.id,
           channelId: interaction.channel.id,
+          lastFetched: null,
         };
         
         queue.add(song);
@@ -89,16 +152,17 @@ export const playCommand = {
       await interaction.editReply(`🔍 Searching: **${video.title}**...`);
       
       console.log("Fetching stream URL...");
-      const stream = await play.stream(video.url);
+      const streamUrl = await fetchPipedStreamUrl(video.url);
       
       const song = {
         title: video.title,
         url: video.url,
-        stream: stream, // Store stream object
+        streamUrl,
         thumbnail: video.thumbnail,
         requester: interaction.user.username,
         guildId: interaction.guild.id,
         channelId: interaction.channel.id,
+        lastFetched: Date.now(),
       };
 
       // Add song to queue
@@ -163,22 +227,28 @@ async function playNextSong(interaction, connection) {
   const currentSong = queue.next();
   
   try {
-    // If no cached stream, fetch it now
-    if (!currentSong.stream) {
-      console.log("Fetching stream for:", currentSong.title);
-      currentSong.stream = await play.stream(currentSong.url);
+    const needsRefresh =
+      !currentSong.streamUrl || !currentSong.lastFetched || Date.now() - currentSong.lastFetched > STREAM_CACHE_TTL;
+
+    if (needsRefresh) {
+      console.log("Fetching fresh stream URL for:", currentSong.title);
+      currentSong.streamUrl = await fetchPipedStreamUrl(currentSong.url);
+      currentSong.lastFetched = Date.now();
     }
-    
-    if (!currentSong || !currentSong.stream) {
+
+    if (!currentSong || !currentSong.streamUrl) {
       throw new Error("Invalid song");
     }
     
     console.log("Playing:", currentSong.title);
     
-    // Use play-dl stream
-    const resource = createAudioResource(currentSong.stream.stream, {
-      inputType: currentSong.stream.type
-    });
+    const streamResponse = await fetch(currentSong.streamUrl, { headers: DEFAULT_HEADERS });
+    if (!streamResponse.ok || !streamResponse.body) {
+      throw new Error(`Failed to fetch audio stream (${streamResponse.status})`);
+    }
+
+    const nodeStream = Readable.fromWeb(streamResponse.body);
+    const resource = createAudioResource(nodeStream);
     
     // Get or create player
     let player = guildPlayers.get(interaction.guild.id)?.player;
