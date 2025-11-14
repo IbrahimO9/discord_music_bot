@@ -15,7 +15,13 @@ import { Readable } from "stream";
 export const guildPlayers = new Map();
 
 // Resolve which Piped instance to use (configurable via env)
-const pipedBaseUrl = process.env.PIPED_INSTANCE?.replace(/\/$/, "") || "https://piped.video";
+const pipedHosts = Array.from(
+  new Set(
+    [process.env.PIPED_INSTANCE, "https://piped.video", "https://pipedapi.kavin.rocks", "https://piped.mha.fi"]
+      .filter(Boolean)
+      .map((host) => host.replace(/\/$/, ""))
+  )
+);
 const STREAM_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_HEADERS = {
   accept: "application/json",
@@ -52,28 +58,44 @@ async function fetchPipedStreamUrl(videoUrl) {
     throw new Error("Unable to parse YouTube video ID");
   }
 
-  const endpoint = `${pipedBaseUrl}/api/v1/streams/${videoId}`;
-  const response = await fetch(endpoint, { headers: DEFAULT_HEADERS });
+  let lastError;
+  for (const host of pipedHosts) {
+    const endpoint = `${host}/api/v1/streams/${videoId}`;
+    try {
+      const response = await fetch(endpoint, { headers: DEFAULT_HEADERS });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch stream metadata (${response.status})`);
+      const contentType = response.headers.get("content-type") || "";
+      const bodyText = await response.text();
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Unexpected content-type ${contentType}`);
+      }
+
+      const data = JSON.parse(bodyText);
+      const audioStreams = data?.audioStreams || [];
+      if (!audioStreams.length) {
+        throw new Error("No audio streams available");
+      }
+
+      // Prefer Opus/WebM streams for lower latency, fall back to highest bitrate
+      const preferred = audioStreams.find((stream) => stream.format === "WEBM" && stream.codec?.includes("opus"));
+      const streamInfo = preferred || audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
+      if (!streamInfo?.url) {
+        throw new Error("Invalid stream url");
+      }
+
+      console.log(`[Piped] Using host ${host}`);
+      return streamInfo.url;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Piped] Host ${host} failed:`, error.message);
+    }
   }
 
-  const data = await response.json();
-  const audioStreams = data?.audioStreams || [];
-  if (!audioStreams.length) {
-    throw new Error("No audio streams available from Piped");
-  }
-
-  // Prefer Opus/WebM streams for lower latency, fall back to highest bitrate
-  const preferred = audioStreams.find((stream) => stream.format === "WEBM" && stream.codec?.includes("opus"));
-  const streamInfo = preferred || audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-
-  if (!streamInfo?.url) {
-    throw new Error("Invalid audio stream info from Piped");
-  }
-
-  return streamInfo.url;
+  throw lastError || new Error("Failed to fetch stream URL from all Piped hosts");
 }
 
 // Helper function to delete "Now Playing" message
