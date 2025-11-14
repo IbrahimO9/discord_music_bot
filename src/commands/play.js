@@ -102,11 +102,16 @@ export const playCommand = {
     ),
 
   async execute(interaction) {
+    let deferred = false;
     try {
       // DEFER IMMEDIATELY - before ANY other operations
       await interaction.deferReply();
+      deferred = true;
     } catch (deferError) {
       console.error("Failed to defer reply:", deferError);
+      if (interaction.channel) {
+        interaction.channel.send("⚠️ I missed that command. Please run /play again!").catch(() => {});
+      }
       return;
     }
 
@@ -203,7 +208,7 @@ export const playCommand = {
       console.error("Error in play command:", error);
       
       try {
-        if (interaction.deferred || interaction.replied) {
+        if (deferred && (interaction.deferred || interaction.replied)) {
           await interaction.editReply("❌ An error occurred while playing the song!");
         } else {
           await interaction.reply({ content: "❌ An error occurred while playing the song!", flags: 64 });
